@@ -1,0 +1,106 @@
+on early-init
+    symlink /vendor/lib64/hw/keystore.sprdtrusty.so /vendor/lib64/hw/keystore.${ro.hardware}.so
+
+on init
+    start servicemanager
+    start hwservicemanager
+    start vndservicemanager
+
+on property:ro.crypto.state=encrypted
+    install_keyring
+    start gatekeeper-1-0
+    start keymaster-3-0
+    start vold
+
+on property:ro.crypto.state=unsupported
+    stop keymaster-3-0
+    stop gatekeeper-1-0
+    stop vndservicemanager
+    stop hwservicemanager
+    stop servicemanager
+
+on property:ro.crypto.state=unencrypted
+    stop keymaster-3-0
+    stop gatekeeper-1-0
+    stop vndservicemanager
+    stop hwservicemanager
+    stop servicemanager
+
+on property:twrp.decrypt.done=true && property:twrp.all.users.decrypted=true
+    stop keymaster-3-0
+    stop gatekeeper-1-0
+    stop vndservicemanager
+    stop hwservicemanager
+    stop servicemanager
+
+on property:hwservicemanager.ready=true
+    write /proc/bootprof "hwservicemanager:ready"
+    start gatekeeper-1-0
+    start keymaster-3-0
+
+service keymaster-3-0 /vendor/bin/hw/android.hardware.keymaster@3.0-service
+    user root
+    group root drmrpc
+    setenv PATH /sbin:/vendor/bin:/system/bin
+    setenv LD_LIBRARY_PATH /vendor/lib64:/system/lib64:/vendor/lib:/system/lib:/sbin
+    disabled
+    oneshot
+    seclabel u:r:recovery:s0
+
+service gatekeeper-1-0 /vendor/bin/hw/android.hardware.gatekeeper@1.0-service
+    disabled
+    user root
+    group root
+    seclabel u:r:recovery:s0
+
+service vold /system/bin/vold \
+        --blkid_context=u:r:blkid:s0 --blkid_untrusted_context=u:r:blkid_untrusted:s0 \
+        --fsck_context=u:r:fsck:s0 --fsck_untrusted_context=u:r:fsck_untrusted:s0
+    socket vold stream 0660 root mount
+    socket cryptd stream 0660 root mount
+    setenv PATH /sbin:/vendor/bin:/system/bin
+    setenv LD_LIBRARY_PATH /system/lib64:/system/lib:/sbin
+    disabled
+    oneshot
+    seclabel u:r:recovery:s0
+
+service servicemanager /sbin/servicemanager /dev/binder
+    user root
+    group root readproc
+    setenv PATH /sbin:/vendor/bin:/system/bin
+    setenv LD_LIBRARY_PATH /system/lib64:/system/lib:/sbin
+    disabled
+    oneshot
+    seclabel u:r:recovery:s0
+
+service hwservicemanager /sbin/hwservicemanager /dev/hwbinder
+    user root
+    group root
+    onrestart setprop hwservicemanager.ready false
+    setenv PATH /sbin:/vendor/bin:/system/bin
+    setenv LD_LIBRARY_PATH /system/lib64:/system/lib:/sbin
+    disabled
+    oneshot
+    seclabel u:r:recovery:s0
+
+service vndservicemanager /vendor/bin/vndservicemanager /dev/vndbinder
+    user root
+    group root
+    setenv PATH /sbin:/vendor/bin:/system/bin
+    setenv LD_LIBRARY_PATH /vendor/lib64:/vendor/lib:/system/lib64:/system/lib:/sbin
+    disabled
+    oneshot
+    seclabel u:r:recovery:s0
+
+service keystore_auth /sbin/keystore_auth
+    oneshot
+    user system
+    group root
+    disabled
+    seclabel u:r:recovery:s0
+
+service keystore /sbin/keystore /tmp/misc/keystore
+    user root
+    group root drmrpc readproc
+    disabled
+    seclabel u:r:recovery:s0
