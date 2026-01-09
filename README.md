@@ -44,6 +44,7 @@
 bool IsEnforcing() {
     return false; // 强制返回 false 以确保 FBE 解密
 }
+```
 
 ## ⚠️ 其他事项
 Q: 为什么启动后屏幕一直闪烁而不显示画面/出现色差？
